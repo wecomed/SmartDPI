@@ -45,13 +45,20 @@ task_check_app() {
 }
 
 task_check_app "$task_app_dir"
+[[ -f docs/INSTALLATION.html ]] || {
+    print -u2 "Missing docs/INSTALLATION.html; the release must include the first-open guide."
+    exit 1
+}
 mkdir -p "$task_output_dir"
 task_stage="$(mktemp -d "$task_output_dir/.package.XXXXXX")"
 trap 'rm -rf "$task_stage"' EXIT HUP INT TERM
 task_archive="SmartDPI-$task_version-macOS-arm64.zip"
+task_disk_image="SmartDPI-$task_version-macOS-arm64.dmg"
 
 # Read the existing app without rebuilding, resigning, or touching a running bundle.
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$task_app_dir" "$task_stage/$task_archive"
+cp docs/INSTALLATION.html "$task_stage/INSTALLATION.html"
+./scripts/create-dmg.sh "$task_app_dir" "$task_stage/$task_disk_image" "$task_stage/INSTALLATION.html"
 cat > "$task_stage/INSTALL.txt" <<EOF
 SmartDPI $task_version — macOS 安装与使用
 
@@ -60,17 +67,22 @@ SmartDPI $task_version — macOS 安装与使用
 - 可用分辨率、HiDPI 与刷新率取决于芯片、系统、显示器和连接。
 
 安装
-1. 下载并解压 $task_archive。
-2. 将 SmartDPI.app 拖入“应用程序”，双击打开。
+1. 推荐下载并打开 $task_disk_image。
+2. 将 SmartDPI.app 拖入右侧“应用程序”，从“应用程序”打开。
+   若使用 ZIP：解压 $task_archive，再将 App 拖入“应用程序”。
 3. 点击顶部菜单栏的显示器图标，选择目标显示器。
 4. 在统一列表中选择“1920 × 1080 · HiDPI 开”等模式，点击立即生效。
 5. 刷新率可选“自动”，或选择该模式实际提供的频率。
+6. 安装完成后，可在 Finder 边栏推出 SmartDPI 安装磁盘。
 
 首次打开
 此发布包仅使用临时（ad-hoc）签名，尚无 Apple Developer ID 签名或公证。
-若 macOS 阻止打开，请先核对发布来源和 SHA256SUMS.txt；尝试打开一次后，
-前往“系统设置 → 隐私与安全性”，在对应 SmartDPI 提示旁选择“仍要打开”，
-并按系统提示完成确认。组织管理的 Mac 可能限制此操作，请遵循设备管理策略。
+DMG 提供安装引导，不能代替 Apple 签名或公证。
+若看到“无法验证开发者”“已损坏”或“移到废纸篓”等提示，先查看安装磁盘内
+“安装说明.html”，或单独下载 INSTALLATION.html，按实际提示核对和处理。
+仅在确认来源可信、校验正确，且系统提供对应入口时，在“系统设置 → 隐私与安全性”
+选择“仍要打开”。若提示恶意软件、出现校验失败或没有允许入口，请停止安装。
+组织管理的 Mac 可能限制此操作，请遵循设备管理策略。
 
 使用与恢复
 - 分辨率表示桌面“看起来像”的尺寸，不会增加显示器的物理像素。
@@ -84,9 +96,11 @@ SmartDPI $task_version — macOS 安装与使用
   设备提供相同的分辨率或刷新率。若切换失败，请使用恢复入口。
 
 校验下载
-将 ZIP、INSTALL.txt 与 SHA256SUMS.txt 放在同一文件夹，在该文件夹运行：
+将 DMG、ZIP、INSTALL.txt、INSTALLATION.html 和 SHA256SUMS.txt 放在同一文件夹，运行：
     shasum -a 256 -c SHA256SUMS.txt
-两个文件均显示 OK 后，说明下载内容与发布校验值一致。
+四个文件均显示 OK 后，说明下载内容与发布校验值一致。
+只下载了 DMG 时，可运行 shasum -a 256 "$task_disk_image"，
+与 SHA256SUMS.txt 中相同文件名对应的值逐字核对。
 EOF
 
 mkdir "$task_stage/check"
@@ -94,12 +108,13 @@ mkdir "$task_stage/check"
 task_check_app "$task_stage/check/SmartDPI.app"
 (
     cd "$task_stage"
-    /usr/bin/shasum -a 256 "$task_archive" INSTALL.txt > SHA256SUMS.txt
+    /usr/bin/shasum -a 256 "$task_archive" "$task_disk_image" INSTALL.txt INSTALLATION.html > SHA256SUMS.txt
     /usr/bin/shasum -a 256 -c SHA256SUMS.txt
 )
 
-for task_file in "$task_archive" INSTALL.txt SHA256SUMS.txt; do
+for task_file in "$task_archive" "$task_disk_image" INSTALL.txt INSTALLATION.html SHA256SUMS.txt; do
     mv -f "$task_stage/$task_file" "$task_output_dir/$task_file"
 done
 print "Release package ready: $task_output_dir/$task_archive"
+print "Recommended guided installer: $task_output_dir/$task_disk_image"
 cat "$task_output_dir/SHA256SUMS.txt"

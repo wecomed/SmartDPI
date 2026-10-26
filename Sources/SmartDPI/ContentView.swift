@@ -46,10 +46,14 @@ struct ContentView: View {
                             Button { store.exportDiagnostics() } label: {
                                 Label("导出诊断信息", systemImage: "square.and.arrow.up")
                             }
+                            Divider()
+                            Button { InstallationHelp.open() } label: {
+                                Label("安装与首次使用指南", systemImage: "book")
+                            }
                         } label: {
                             Label("更多操作", systemImage: "ellipsis.circle")
                         }
-                        .help("显示设置与诊断")
+                        .help("显示设置、诊断与安装指南")
                     }
                 }
         }

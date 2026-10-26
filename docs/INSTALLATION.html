@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+  <title>SmartDPI · 安装与首次打开</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f5f6f8; --card:#fff; --ink:#20242c; --muted:#626b79; --line:#e2e6ee; --blue:#1467d6; --soft:#edf4ff; --warn:#8b5610; --warn-bg:#fff6e5; --stop:#b73838; --stop-bg:#fff1f0; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.7 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB",sans-serif; -webkit-font-smoothing:antialiased; }
+    main { width:min(980px,100%); margin:0 auto; padding:56px 28px 42px; }
+    header { max-width:760px; margin-bottom:30px; }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:26px; font-weight:700; letter-spacing:-.02em; }
+    .app-mark { width:44px; height:44px; display:grid; place-items:center; border-radius:12px; color:white; background:linear-gradient(145deg,#33c5ef,#2877e7 58%,#6552dc); box-shadow:0 4px 12px #174ca020; }
+    .app-mark svg { width:30px; height:30px; }
+    .tag { display:inline-block; margin-left:5px; color:var(--muted); font-size:12px; font-weight:500; letter-spacing:0; }
+    h1 { margin:0 0 12px; font-size:clamp(30px,5vw,44px); line-height:1.2; letter-spacing:-.045em; }
+    h2 { margin:0 0 12px; font-size:23px; line-height:1.35; letter-spacing:-.025em; }
+    h3 { margin:0 0 9px; font-size:18px; line-height:1.4; }
+    p { margin:0 0 12px; }
+    p:last-child { margin-bottom:0; }
+    .intro { font-size:18px; color:var(--muted); }
+    .badge { display:inline-block; margin-top:8px; border:1px solid var(--line); border-radius:99px; padding:5px 12px; color:var(--muted); font-size:13px; }
+    .steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:0 0 24px; padding:0; list-style:none; }
+    .step,.panel { background:var(--card); border:1px solid var(--line); border-radius:21px; }
+    .step { padding:24px 22px; }
+    .number { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--soft); color:var(--blue); font-size:15px; font-weight:700; margin-bottom:17px; }
+    .step p { color:var(--muted); font-size:14px; }
+    .step strong { color:var(--ink); font-weight:600; }
+    .panel { padding:28px; margin:0 0 20px; }
+    .small { font-size:14px; color:var(--muted); }
+    .notice { padding:17px 19px; background:var(--soft); border-radius:13px; margin:18px 0; }
+    .notice strong { color:var(--blue); }
+    .security-list { display:grid; gap:14px; margin-top:20px; }
+    .security { border:1px solid var(--line); border-radius:15px; padding:20px; }
+    .security.primary { border-color:color-mix(in srgb,var(--blue) 30%,var(--line)); background:var(--soft); }
+    .security.primary .label { color:var(--blue); }
+    .security .label { margin:0 0 8px; color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.06em; }
+    .security.warning { border-color:color-mix(in srgb,var(--warn) 25%,var(--line)); background:var(--warn-bg); }
+    .security.stop { border-color:color-mix(in srgb,var(--stop) 25%,var(--line)); background:var(--stop-bg); }
+    .security.warning .label { color:var(--warn); }
+    .security.stop .label { color:var(--stop); }
+    ol.instructions { margin:10px 0 0; padding-left:23px; }
+    ol.instructions li { padding-left:3px; margin:6px 0; }
+    a { color:var(--blue); text-decoration:underline; text-underline-offset:3px; }
+    a:focus-visible { outline:3px solid var(--blue); outline-offset:4px; border-radius:2px; }
+    code { font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--bg); padding:2px 5px; border-radius:5px; overflow-wrap:anywhere; }
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:25px; }
+    footer { color:var(--muted); font-size:12px; padding:7px 4px; }
+    footer a { color:inherit; }
+    @media (prefers-color-scheme:dark) { :root { --bg:#17191e; --card:#22252c; --ink:#f0f2f6; --muted:#b0b8c6; --line:#373d48; --blue:#83b7ff; --soft:#263852; --warn:#efc17a; --warn-bg:#352d21; --stop:#ffa7a7; --stop-bg:#382628; } }
+    @media (max-width:700px) { main { padding:32px 18px; } .steps,.two-col { grid-template-columns:1fr; } .step { display:grid; grid-template-columns:30px 1fr; column-gap:15px; padding:19px; } .step .number { grid-row:1/3; margin:2px 0 0; } .step h3 { margin-bottom:5px; } .panel { padding:22px; } }
+    @media print { body { background:white; color:black; font-size:11pt; } main { width:100%; padding:0; } .panel,.step { break-inside:avoid; } a { color:inherit; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand"><span class="app-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect x="5" y="7" width="30" height="22" rx="4" stroke="currentColor" stroke-width="2.6"/><path d="M15 34h10m-5-5v5M13 22l13-9m-7 0h7v7m-6 2h-7v-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SmartDPI <span class="tag">安装与首次打开 · 0.6.1</span></div>
+      <h1>装好以后，<br>从菜单栏选择舒适的大小。</h1>
+      <p class="intro">为在 macOS 上未适配 HiDPI 的显示器提供缩放选择。<br>先把 App 放进“应用程序”，再完成首次打开。</p>
+      <span class="badge">Apple Silicon · M1 及后续 M 系列 · macOS 13+</span>
+    </header>
+
+    <ol class="steps" aria-label="安装步骤">
+      <li class="step"><span class="number">1</span><h3>拖入“应用程序”</h3><p>打开 DMG，将 <strong>SmartDPI.app</strong> 拖到同一窗口的<strong>“应用程序”</strong>文件夹。ZIP 用户先解压，再拖入 Finder 的“应用程序”。</p></li>
+      <li class="step"><span class="number">2</span><h3>从“应用程序”打开</h3><p>双击安装好的 <strong>SmartDPI</strong>。首次打开如遇系统提示，先对照下面的说明。完成安装后可以推出 DMG。</p></li>
+      <li class="step"><span class="number">3</span><h3>在菜单栏选 HiDPI</h3><p>点击顶部菜单栏的显示器图标，选择目标屏幕和<strong>“HiDPI 开”</strong>的桌面大小。点击立即生效；需要返回时选<strong>“恢复原设置”</strong>。</p></li>
+    </ol>
+
+    <section class="panel" aria-labelledby="security-heading">
+      <h2 id="security-heading">看到“移到废纸篓”，先看提示正文。</h2>
+      <p>这是 macOS 的安全检查界面。“移到废纸篓”可能只是提示中的一个按钮，单看这个按钮还不能确定 App 已损坏。</p>
+      <div class="notice"><strong>当前发布状态：</strong>SmartDPI 使用临时（ad-hoc）签名，<b>没有 Apple Developer ID 签名，也未经过 Apple 公证</b>。DMG 让安装步骤更清楚，不能消除系统的安全检查。App 内的引导也要在系统允许启动后才能显示。</div>
+      <div class="security-list">
+        <article class="security primary">
+          <p class="label">当前版本首次打开可能遇到 · 开发者身份 / 公证提示</p>
+          <h3>“Apple 无法检查是否包含恶意软件”<br>或“无法验证开发者”</h3>
+          <p>这类提示与当前尚未公证的发布状态相符。如果你决定继续，请先确认来源和文件：</p>
+          <ol class="instructions">
+            <li>确认从 <a href="https://github.com/wecomed/SmartDPI/releases">wecomed/SmartDPI 官方 Releases</a> 下载；需要时按下方方法核对同版本 SHA256。</li>
+            <li>尝试打开一次后，进入<strong>“系统设置 → 隐私与安全性”</strong>，向下查看安全性区域。</li>
+            <li><strong>只有确认信任此来源，且出现 SmartDPI 的对应条目时</strong>，才选择“仍要打开”（部分系统文案可能为“仍然允许”），再按系统提示确认。</li>
+          </ol>
+          <p class="small">没有对应条目时不要寻找强制绕过命令。单位管理的 Mac 可能需要管理员处理；也可向项目反馈完整提示。</p>
+        </article>
+        <article class="security warning">
+          <p class="label">文件损坏 / 完整性问题</p>
+          <h3>“已损坏，无法打开”</h3>
+          <p>先取消打开，重新从官方发布页下载同版本文件，并核对 SHA256。仍然提示损坏时，向项目提交完整提示、macOS 版本、下载链接与校验结果，由开发者检查打包和签名问题。</p>
+          <p class="small">不要把“已损坏”直接当成普通的未公证提示，也不要删除隔离标记来强行运行。</p>
+        </article>
+        <article class="security stop">
+          <p class="label">停止使用并反馈</p>
+          <h3>“将损坏你的电脑”或检测到恶意软件</h3>
+          <p>停止打开该文件，按系统提示处理，不要尝试强行运行。记录完整提示、下载链接与校验值，在 <a href="https://github.com/wecomed/SmartDPI/issues">项目 Issues</a> 中反馈，等待核查或修复。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel two-col" aria-label="校验与使用说明">
+      <div>
+        <h2>可选：核对下载完整性</h2>
+        <p>从同一 Release 下载 <code>SHA256SUMS.txt</code>。在“终端”输入 <code>shasum -a 256</code> 和一个空格，把下载的 DMG 或 ZIP 拖到终端，再按回车。将输出与校验文件中对应文件那一行比较。</p>
+        <p class="small">校验值一致，说明下载文件与发布资产相同；它不能代替恶意软件检查或 Apple 公证。不一致时不要运行，请重新下载。</p>
+      </div>
+      <div>
+        <h2>开始使用前了解两点</h2>
+        <p>“看起来像”的尺寸决定文字和窗口大小；物理面板的像素不会改变。SmartDPI 面向各种缺少 HiDPI 适配的显示器，可用尺寸和刷新率取决于实际设备与连接。</p>
+        <p class="small">缺少系统 HiDPI 模式时，SmartDPI 会尝试虚拟屏幕与系统镜像；系统设置中出现镜像属于正常表现，此时需保持 App 运行。可运行架构不代表所有 M 系列都已逐机测试。</p>
+      </div>
+    </section>
+
+    <footer>
+      <p>本页随安装包提供，可离线阅读；只有点击链接时才会访问对应网站。安装不要求关闭 Gatekeeper、SIP，或删除下载隔离标记。</p>
+      <p>依据：<a href="https://support.apple.com/102445">Apple · 在 Mac 上安全地打开 App</a> · <a href="https://developer.apple.com/developer-id/">Apple · Developer ID 与公证</a> · <a href="https://github.com/wecomed/SmartDPI">项目主页</a></p>
+    </footer>
+  </main>
+</body>
+</html>

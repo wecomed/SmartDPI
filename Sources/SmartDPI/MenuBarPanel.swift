@@ -350,6 +350,7 @@ struct MenuBarPanel: View {
                 .modifier(NativeActionAppearance())
                 .help("恢复更改前的显示设置")
                 Menu {
+                    Button("安装与首次使用指南") { InstallationHelp.open() }
                     Button("系统显示设置") { store.openSystemSettings() }
                     Button("导出诊断信息…") { store.exportDiagnostics() }
                     Divider()
@@ -359,7 +360,7 @@ struct MenuBarPanel: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .accessibilityLabel("系统显示设置、诊断与退出")
+                .accessibilityLabel("安装指南、系统显示设置、诊断与退出")
             }
             .font(.caption)
             .buttonStyle(.borderless)

@@ -132,6 +132,9 @@ struct SmartDPIApplication: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .help) {
+                Button("安装与首次使用指南") { InstallationHelp.open() }
+            }
             CommandMenu("显示器") {
                 Button("刷新显示器") { store.refresh() }.keyboardShortcut("r")
                 Button("恢复原设置") {
