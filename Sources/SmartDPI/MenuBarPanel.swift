@@ -64,6 +64,7 @@ struct MenuBarPanel: View {
                 currentStatus(display)
                 Divider()
                 selectionHeader
+                AutoRestoreControl(store: store)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(store.displayOptions) { option in
@@ -304,7 +305,7 @@ struct MenuBarPanel: View {
     private var feedbackText: String {
         if store.busy { return "正在调整显示设置…" }
         if let error = store.error { return error }
-        if store.recoveryPending { return "上次设置尚未恢复，请重试恢复。" }
+        if store.recoveryPending { return store.status ?? "上次设置尚未恢复，请重试恢复。" }
         if store.isDemo { return "演示预览 · 不会更改实际显示设置" }
         if let status = store.status { return status }
         if store.selectedDisplay?.isInMirrorSet == true, !store.activeVirtual {
@@ -350,6 +351,9 @@ struct MenuBarPanel: View {
                 .modifier(NativeActionAppearance())
                 .help("恢复更改前的显示设置")
                 Menu {
+                    if store.canCancelDisconnectedRecovery {
+                        Button("取消等待离线显示器") { store.cancelDisconnectedRecovery() }
+                    }
                     Button("安装与首次使用指南") { InstallationHelp.open() }
                     Button("系统显示设置") { store.openSystemSettings() }
                     Button("导出诊断信息…") { store.exportDiagnostics() }

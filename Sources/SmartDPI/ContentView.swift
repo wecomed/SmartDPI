@@ -46,6 +46,9 @@ struct ContentView: View {
                             Button { store.exportDiagnostics() } label: {
                                 Label("导出诊断信息", systemImage: "square.and.arrow.up")
                             }
+                            if store.canCancelDisconnectedRecovery {
+                                Button("取消等待离线显示器") { store.cancelDisconnectedRecovery() }
+                            }
                             Divider()
                             Button { InstallationHelp.open() } label: {
                                 Label("安装与首次使用指南", systemImage: "book")
@@ -106,6 +109,7 @@ struct ContentView: View {
                 displaySummary(display)
                 Divider()
                 resolutionHeader
+                AutoRestoreControl(store: store)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
@@ -312,7 +316,7 @@ struct ContentView: View {
     private var feedbackText: String {
         if store.busy { return "正在调整显示设置…" }
         if let error = store.error { return error }
-        if store.recoveryPending { return "显示设置尚未完全恢复，请重试恢复。" }
+        if store.recoveryPending { return store.status ?? "显示设置尚未完全恢复，请重试恢复。" }
         if store.isDemo { return "演示模式：仅预览界面，不会更改显示设置。" }
         if let status = store.status { return status }
         if store.selectedDisplay?.isInMirrorSet == true && !store.activeVirtual {

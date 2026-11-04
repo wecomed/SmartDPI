@@ -168,7 +168,9 @@ private func displayReconfigured(_ id: CGDirectDisplayID, _ flags: CGDisplayChan
                                  _ context: UnsafeMutableRawPointer?) {
     guard !flags.contains(.beginConfigurationFlag), let context else { return }
     let delegate = Unmanaged<AppDelegate>.fromOpaque(context).takeUnretainedValue()
-    Task { @MainActor in delegate.scheduleRefresh() }
+    Task { @MainActor in
+        delegate.configurationChanged(id: id, flags: flags)
+    }
 }
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -189,17 +191,17 @@ private func displayReconfigured(_ id: CGDirectDisplayID, _ flags: CGDisplayChan
             observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: notification,
                 object: nil, queue: .main) { [weak self] _ in
                     Task { @MainActor in
-                        // Stop temporary mirroring before sleep; reconnect is always manual.
-                        if self?.store?.busy == true || self?.store?.activeVirtual == true || self?.store?.pendingSeconds != nil {
-                            self?.store?.revertChanges()
-                        }
+                        self?.store?.displaysWillSleep()
                     }
                 })
         }
-        observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification,
-            object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.scheduleRefresh() }
-            })
+        for notification in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification] {
+            observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: notification,
+                object: nil, queue: .main) { [weak self] _ in
+                    Task { @MainActor in self?.store?.displaysDidWake() }
+                })
+        }
+        store.startAutomaticRestore()
         // CoreGraphics callbacks handle changes promptly. This is only a fallback
         // for a missed notification, avoiding mode enumeration twenty times a minute.
         pollTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -221,6 +223,13 @@ private func displayReconfigured(_ id: CGDirectDisplayID, _ flags: CGDisplayChan
             Task { @MainActor in self?.store?.checkVirtualHealth() }
         }
         virtualHealthTimer?.tolerance = 0.5
+    }
+
+    func configurationChanged(id: UInt32, flags: CGDisplayChangeSummaryFlags) {
+        if flags.contains(.addFlag) || flags.contains(.removeFlag) || flags.contains(.enabledFlag) || flags.contains(.disabledFlag) {
+            store?.displayConnectionChanged(id: id, removed: flags.contains(.removeFlag) || flags.contains(.disabledFlag))
+        }
+        scheduleRefresh()
     }
 
     func scheduleRefresh() {

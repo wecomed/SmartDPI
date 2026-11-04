@@ -50,11 +50,13 @@ public struct DisplayInfo: Identifiable, Codable, Equatable, Sendable {
     public let nativeWidth: Int?
     public let nativeHeight: Int?
     public let nativeSizeIsEstimated: Bool
+    /// Hash of the system display UUID; never the raw hardware serial number.
+    public let persistentID: String?
 
     public init(id: UInt32, name: String, isBuiltin: Bool, isMain: Bool, vendor: UInt32,
                 product: UInt32, mirrorSource: UInt32, currentMode: DisplayMode?, modes: [DisplayMode],
                 isInMirrorSet: Bool = false, nativeWidth: Int? = nil, nativeHeight: Int? = nil,
-                nativeSizeIsEstimated: Bool = true) {
+                nativeSizeIsEstimated: Bool = true, persistentID: String? = nil) {
         self.id = id
         self.name = name
         self.isBuiltin = isBuiltin
@@ -65,6 +67,7 @@ public struct DisplayInfo: Identifiable, Codable, Equatable, Sendable {
         self.isInMirrorSet = isInMirrorSet || mirrorSource != 0
         self.currentMode = currentMode
         self.modes = modes
+        self.persistentID = persistentID
         if let nativeWidth, let nativeHeight, nativeWidth > 0, nativeHeight > 0 {
             self.nativeWidth = nativeWidth
             self.nativeHeight = nativeHeight
