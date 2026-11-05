@@ -53,6 +53,35 @@ import Testing
         #expect(observe(&episode, ready, at: 7) == .apply(displayID: 2, optionID: saved.optionID, refreshRate: nil))
     }
 
+    @Test func awake900pCapabilityLossIsAReconnectSignalEvenWithTheSameID() {
+        let partial = monitor(nativeWidth: 1600, nativeHeight: 900)
+        #expect(!AutoHiDPIPolicy.hasKnownPanelModes(for: setting(), on: partial))
+        #expect(AutoHiDPIPolicy.shouldResumeAfterMirrorLoss(setting: setting(), display: partial, ownedSource: 100))
+        #expect(AutoHiDPIPolicy.option(for: setting(), on: partial, includeVirtual: true) == nil)
+    }
+
+    @Test func intactCapabilitiesAfterAnExternalModeChangeDoNotForceTheSavedHiDPI() {
+        let ready = monitor()
+        #expect(AutoHiDPIPolicy.hasKnownPanelModes(for: setting(), on: ready))
+        #expect(!AutoHiDPIPolicy.shouldResumeAfterMirrorLoss(setting: setting(), display: ready, ownedSource: 100))
+    }
+
+    @Test func degradedForeignMirrorIsNotTreatedAsOurReconnect() {
+        let foreign = monitor(nativeWidth: 1600, nativeHeight: 900, mirrored: true)
+        #expect(!AutoHiDPIPolicy.shouldResumeAfterMirrorLoss(setting: setting(), display: foreign, ownedSource: 200))
+        #expect(AutoHiDPIPolicy.shouldResumeAfterMirrorLoss(setting: setting(), display: foreign, ownedSource: 100))
+    }
+
+    @Test func cachedNativeSizeCannotMakeMissingPhysicalModesReady() {
+        let ready = monitor()
+        let incomplete = DisplayInfo(id: ready.id, name: ready.name, isBuiltin: false, isMain: false,
+            vendor: ready.vendor, product: ready.product, mirrorSource: 0, currentMode: ready.currentMode,
+            modes: ready.modes.filter { $0.pixelWidth != 2560 }, nativeWidth: 2560, nativeHeight: 1440,
+            nativeSizeIsEstimated: false, persistentID: ready.persistentID)
+        #expect(!AutoHiDPIPolicy.hasKnownPanelModes(for: setting(), on: incomplete))
+        #expect(AutoHiDPIPolicy.option(for: setting(), on: incomplete, includeVirtual: true) == nil)
+    }
+
     @Test func unavailableDesiredSizeNeverFallsBackTo720pHiDPI() {
         var episode = AutoHiDPIAttempt(startedAt: 0)
         let display = monitor(includeRequested: false)

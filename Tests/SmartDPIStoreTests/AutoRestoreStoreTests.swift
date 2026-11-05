@@ -4,6 +4,42 @@ import Testing
 import SmartDPICore
 
 @Suite struct AutoRestoreStoreTests {
+    @MainActor @Test func temporary900pIsReportedAsIncompleteWithoutReplacingKnownPanelOrPreference() throws {
+        let (preferences, suite) = try isolatedPreferences()
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let data = try JSONEncoder().encode([profile().persistentID: profile()])
+        preferences.set(data, forKey: "savedHiDPI.v1")
+        let store = DisplayStore(preferences: preferences)
+        let partial = DisplayMode(modeID: 18, width: 1600, height: 900,
+            pixelWidth: 1600, pixelHeight: 900, refreshRate: 60, isNative: true)
+        let display = DisplayInfo(id: 4_000_000_001, name: "Degraded fixture", isBuiltin: false,
+            isMain: false, vendor: 1, product: 2, mirrorSource: 0, currentMode: partial, modes: [partial],
+            persistentID: profile().persistentID)
+        store.displays = [display]
+        store.selectDisplay(id: display.id)
+
+        #expect(store.panelResolutionDescription == "已记录面板 2560 × 1440")
+        #expect(store.displayRecognitionWarning?.contains("识别不完整") == true)
+        #expect(store.currentMode?.title == "1600 × 900")
+        #expect(!store.isHiDPIEnabled)
+        #expect(store.selectedDisplay?.nativeWidth == 1600)
+        #expect(preferences.data(forKey: "savedHiDPI.v1") == data)
+
+        installTemporary720p(on: store)
+        #expect(store.displayRecognitionWarning == nil)
+        #expect(store.panelResolutionDescription == "系统报告 2560 × 1440")
+        #expect(preferences.data(forKey: "savedHiDPI.v1") == data)
+    }
+
+    @MainActor @Test func unknownPanelDoesNotClaimThatSystemModesArePhysicalHardwareFacts() throws {
+        let (preferences, suite) = try isolatedPreferences()
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let store = DisplayStore(preferences: preferences)
+        installTemporary720p(on: store)
+        #expect(store.panelResolutionDescription == "系统报告 2560 × 1440")
+        #expect(store.displayRecognitionWarning == nil)
+    }
+
     @MainActor @Test func automaticRestoreDefaultsOnAndExplicitOptOutPersists() throws {
         let (preferences, suite) = try isolatedPreferences()
         defer { preferences.removePersistentDomain(forName: suite) }

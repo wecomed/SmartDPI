@@ -21,7 +21,7 @@ struct MenuBarPanel: View {
 
     static func preferredHeight(for store: DisplayStore) -> CGFloat {
         // The popover must keep its size when a new mode changes the list or feedback.
-        600
+        626
     }
 
     private var panelHeight: CGFloat {
@@ -145,7 +145,8 @@ struct MenuBarPanel: View {
                     .foregroundStyle(.secondary)
             }
             HStack {
-                Text("\(display.nativeSizeIsEstimated ? "面板（估计）" : "物理面板") \(nativeSizeLabel(display))")
+                Text(store.panelResolutionDescription)
+                    .help("面板信息依据系统报告与保存的显示器信息；不代表当前接口信号的独立测量值。")
                 Spacer(minLength: 4)
                 if store.activeVirtual {
                     Label("系统镜像", systemImage: "rectangle.on.rectangle")
@@ -254,6 +255,14 @@ struct MenuBarPanel: View {
     private var displayDetails: some View {
         DisclosureGroup("显示详情", isExpanded: $showsDisplayDetails) {
             VStack(alignment: .leading, spacing: 7) {
+                Text(store.panelResolutionDescription)
+                    .foregroundStyle(.secondary)
+                if store.displayRecognitionWarning != nil, let display = store.selectedDisplay {
+                    metric("当前系统识别", value: nativeSizeLabel(display))
+                    Text("当前模式列表与已保存的面板信息不一致，请等待系统重新识别显示器。")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 metric("当前内部渲染尺寸", value: store.currentMode.map { "\($0.pixelWidth) × \($0.pixelHeight)" } ?? "未报告")
                 metric("系统报告刷新率", value: store.currentMode?.refreshLabel ?? "未报告")
                 Text("HiDPI 开：使用更多像素绘制文字和界面。列表中的尺寸表示桌面看起来的大小。")

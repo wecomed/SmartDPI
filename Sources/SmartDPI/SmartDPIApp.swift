@@ -81,6 +81,7 @@ import SmartDPICore
             store.error = "恢复显示配置时遇到问题，请关闭全屏应用后点击“重试恢复”。"
         }
         if CommandLine.arguments.contains("--busy-preview") { store.busy = true }
+        if CommandLine.arguments.contains("--recognition-preview") { store.previewIncompleteRecognition() }
         if CommandLine.arguments.contains("--rate-preview") { store.menuRefreshRate = 75 }
         let dark = CommandLine.arguments.contains("--dark-preview")
         app.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

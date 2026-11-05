@@ -30,20 +30,36 @@ public struct SavedHiDPISetting: Codable, Equatable, Sendable {
 }
 
 public enum AutoHiDPIPolicy {
+    /// A remembered panel is evidence of past capabilities, not permission to
+    /// synthesize a physical mode that the current connection does not offer.
+    public static func hasKnownPanelModes(for setting: SavedHiDPISetting, on display: DisplayInfo) -> Bool {
+        setting.isValid && display.persistentID == setting.persistentID &&
+        display.nativeWidth == setting.nativeWidth && display.nativeHeight == setting.nativeHeight &&
+        display.modes.contains {
+            $0.usable && $0.pixelWidth == setting.nativeWidth && $0.pixelHeight == setting.nativeHeight &&
+            $0.refreshRate.isFinite && $0.refreshRate > 0
+        }
+    }
+
+    /// Losing an owned mirror while still marked awake is only a reconnect
+    /// signal when physical capabilities also disappeared. An ordinary mode
+    /// change with complete capabilities may be an intentional external action.
+    public static func shouldResumeAfterMirrorLoss(setting: SavedHiDPISetting,
+                                                  display: DisplayInfo?, ownedSource: UInt32?) -> Bool {
+        guard let display else { return true }
+        guard display.persistentID == setting.persistentID else { return true }
+        guard !display.isInMirrorSet || (ownedSource != nil && display.mirrorSource == ownedSource) else { return false }
+        return !hasKnownPanelModes(for: setting, on: display)
+    }
+
     /// Require the complete known panel geometry before considering a restored
     /// option. A temporary 720p mode list must not become a new saved preference.
     public static func option(for setting: SavedHiDPISetting, on display: DisplayInfo,
                               includeVirtual: Bool) -> DisplayOption? {
         guard setting.isValid, display.persistentID == setting.persistentID,
               !display.isBuiltin, !display.isInMirrorSet,
-              display.nativeWidth == setting.nativeWidth,
-              display.nativeHeight == setting.nativeHeight,
+              hasKnownPanelModes(for: setting, on: display),
               display.currentMode?.usable == true,
-              display.modes.contains(where: {
-                  $0.usable && $0.pixelWidth == setting.nativeWidth &&
-                  $0.pixelHeight == setting.nativeHeight &&
-                  $0.refreshRate.isFinite && $0.refreshRate > 0
-              }),
               let option = DisplayOption.choices(for: display, includeVirtual: includeVirtual)
                 .first(where: { $0.id == setting.optionID }),
               !option.refreshRates.isEmpty else { return nil }

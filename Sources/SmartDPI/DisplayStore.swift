@@ -34,6 +34,8 @@ import VirtualDisplayBridge
     private var awakeKeys = Set<String>()
     private var recoveringSnapshot = false
     private var baselineAutoRecoveryAllowed = true
+    private var deferredHiDPIRestore = DeferredRestorePolicy()
+    private var deferredBaselineRestore = DeferredRestorePolicy()
 
     private var virtualDisplay: SDVirtualDisplay?
     private var virtualTarget: UInt32?
@@ -418,8 +420,7 @@ import VirtualDisplayBridge
             return
         }
         guard let mode = readValidVirtualMode() else {
-            revertChanges(preservingAutoRestore: true)
-            error = "虚拟屏幕镜像或 HiDPI 模式已被系统改变，已停止虚拟屏幕。"
+            handleInvalidVirtualConnection()
             return
         }
         if virtualModeSnapshot != mode { refresh() }
@@ -455,8 +456,7 @@ import VirtualDisplayBridge
                     return false
                 }
                 guard let mode = readValidVirtualMode() else {
-                    revertChanges(preservingAutoRestore: true)
-                    error = "虚拟屏幕镜像或 HiDPI 模式已被系统改变，已停止虚拟屏幕。"
+                    handleInvalidVirtualConnection()
                     return false
                 }
                 updateVirtualModeSnapshot(mode)
@@ -715,12 +715,47 @@ import VirtualDisplayBridge
         if busy || pendingSeconds != nil || virtualDisplay != nil || recoveryPending { revertChanges() }
     }
 
+    private func savedSetting(for display: DisplayInfo) -> SavedHiDPISetting? {
+        guard let key = display.persistentID,
+              displays.filter({ $0.persistentID == key }).count == 1 else { return nil }
+        return savedHiDPI[key]
+    }
+
+    var panelResolutionDescription: String {
+        guard let display = physicalDisplay else { return "系统尚未报告面板尺寸" }
+        if let saved = savedSetting(for: display), !AutoHiDPIPolicy.hasKnownPanelModes(for: saved, on: display) {
+            return "已记录面板 \(saved.nativeWidth) × \(saved.nativeHeight)"
+        }
+        guard let width = display.nativeWidth, let height = display.nativeHeight else { return "系统尚未报告面板尺寸" }
+        return "\(display.nativeSizeIsEstimated ? "面板（估计）" : "系统报告") \(width) × \(height)"
+    }
+
+    var displayRecognitionWarning: String? {
+        guard let display = physicalDisplay, let saved = savedSetting(for: display),
+              !AutoHiDPIPolicy.hasKnownPanelModes(for: saved, on: display) else { return nil }
+        return "识别不完整：系统暂未提供已记录的 \(saved.nativeWidth) × \(saved.nativeHeight) 模式。"
+    }
+
     var automaticRestoreDescription: String {
         guard autoRestoreHiDPI else { return "已关闭自动恢复；仍可手动选择分辨率。" }
         if let key = physicalDisplay?.persistentID, let saved = savedHiDPI[key] {
             return "下次恢复 \(saved.width) × \(saved.height) · HiDPI，需保持 App 运行。"
         }
         return "选择一次 HiDPI 后记住尺寸；需保持 App 运行。"
+    }
+
+    func previewIncompleteRecognition() {
+        guard isDemo else { return }
+        let mode = DisplayMode(modeID: 18, width: 1600, height: 900,
+            pixelWidth: 1600, pixelHeight: 900, refreshRate: 60, isNative: true)
+        let key = "preview-physical-display"
+        let saved = SavedHiDPISetting(persistentID: key, width: 1920, height: 1080,
+            refreshRate: nil, nativeWidth: 2560, nativeHeight: 1440)
+        savedHiDPI = [key: saved]
+        displays = [DisplayInfo(id: 99, name: "显示器识别不完整 · 演示", isBuiltin: false,
+            isMain: true, vendor: 0, product: 0, mirrorSource: 0,
+            currentMode: mode, modes: [mode], persistentID: key)]
+        selectedDisplayID = 99
     }
 
     func setAutoRestoreHiDPI(_ enabled: Bool) {
@@ -828,6 +863,40 @@ import VirtualDisplayBridge
         revertChanges(preservingAutoRestore: true)
     }
 
+    private func handleInvalidVirtualConnection() {
+        // Read live capabilities before discarding the last healthy snapshot.
+        // The published mirror view intentionally retains its physical modes.
+        let live = try? DisplayBackend.displays(excluding: virtualDisplay?.displayID)
+        let physical = virtualPhysicalDisplay
+        let saved = physical?.persistentID.flatMap { savedHiDPI[$0] }
+        let target = live?.first { $0.id == virtualTarget }
+        let canTreatAsReconnect = saved.map {
+            live != nil && AutoHiDPIPolicy.shouldResumeAfterMirrorLoss(
+                setting: $0, display: target, ownedSource: virtualDisplay?.displayID)
+        } ?? false
+        if canTreatAsReconnect {
+            suspendVirtualForReconnect()
+            status = "显示器识别尚未完整，保留 HiDPI 选择并等待模式恢复。"
+        } else {
+            // With complete capabilities, respect mode/mirror changes made
+            // outside SmartDPI instead of continually forcing our preference.
+            cancelAutomaticRestore()
+            revertChanges(preservingAutoRestore: true)
+            error = "虚拟屏幕镜像或 HiDPI 模式已被系统改变，已停止虚拟屏幕。"
+        }
+    }
+
+    private func savedRestoreIsReady(_ key: String, in snapshot: [DisplayInfo]? = nil) -> Bool {
+        guard let saved = savedHiDPI[key] else { return false }
+        let matches = (snapshot ?? displays).filter { $0.persistentID == key }
+        guard matches.count == 1, let display = matches.first, DisplayBackend.isAwake(display.id) else { return false }
+        return AutoHiDPIPolicy.option(for: saved, on: display, includeVirtual: isVirtualAvailable) != nil
+    }
+
+    private func deferSavedRestore(_ key: String) {
+        deferredHiDPIRestore.markWaiting(key, isReady: savedRestoreIsReady(key))
+    }
+
     private func observeConnections() {
         guard !isDemo else { return }
         let grouped = Dictionary(grouping: displays.filter { !$0.isBuiltin && $0.persistentID != nil }, by: { $0.persistentID! })
@@ -844,6 +913,20 @@ import VirtualDisplayBridge
                     baselineAutoRecoveryAllowed = true
                 }
             }
+            // After the bounded fast retry period, ordinary display callbacks
+            // and the existing slow poll can notice late-arriving capabilities.
+            for key in deferredHiDPIRestore.waitingKeys {
+                if deferredHiDPIRestore.observe(key, isReady: savedRestoreIsReady(key)) {
+                    pendingRestoreKeys.insert(key)
+                }
+            }
+        }
+        if recoveryPending {
+            if deferredBaselineRestore.observe("baseline", isReady: virtualBaseline?.hasAvailableModes == true) {
+                baselineAutoRecoveryAllowed = true
+            }
+        } else {
+            deferredBaselineRestore.removeAll()
         }
         connectionIDs = nowIDs
         awakeKeys = nowAwake
@@ -854,11 +937,14 @@ import VirtualDisplayBridge
         restoreTask?.cancel()
         restoreTask = nil
         pendingRestoreKeys.removeAll()
+        deferredHiDPIRestore.removeAll()
+        deferredBaselineRestore.removeAll()
     }
 
     private func scheduleAutomaticRestore() {
         guard automaticRestoreStarted, !isDemo, !shuttingDown, !displaySleeping,
               restoreTask == nil, !recoveringSnapshot, !busy,
+              !recoveryPending || baselineAutoRecoveryAllowed,
               (autoRestoreHiDPI && !pendingRestoreKeys.isEmpty) || (recoveryPending && baselineAutoRecoveryAllowed) else { return }
         let epoch = restoreEpoch
         restoreTask = Task { [weak self] in
@@ -870,6 +956,10 @@ import VirtualDisplayBridge
                 guard epoch == self.restoreEpoch, !self.displaySleeping, !self.shuttingDown else { break }
                 if self.busy { continue }
                 self.refresh()
+                // Refresh can tear down an invalid mirror and cancel this
+                // worker. Never let that old episode apply a queued mode.
+                guard epoch == self.restoreEpoch, !Task.isCancelled,
+                      !self.displaySleeping, !self.shuttingDown else { return }
                 if self.recoveryPending {
                     if baselineTries < 3, self.virtualBaseline?.hasUnavailableDisplays == false,
                        self.virtualBaseline?.hasAvailableModes == true {
@@ -887,6 +977,7 @@ import VirtualDisplayBridge
                        let mode = self.currentMode, mode.isHiDPI, mode.width == saved.width, mode.height == saved.height,
                        saved.refreshRate.map({ abs($0 - mode.refreshRate) <= 0.01 }) ?? true {
                         self.pendingRestoreKeys.remove(key)
+                        self.deferredHiDPIRestore.remove(key)
                         continue
                     }
                     var attempt = attempts[key] ?? AutoHiDPIAttempt(startedAt: ProcessInfo.processInfo.systemUptime)
@@ -910,13 +1001,16 @@ import VirtualDisplayBridge
                         attempts[key]?.complete(success: success, now: ProcessInfo.processInfo.systemUptime)
                         if success {
                             self.pendingRestoreKeys.remove(key)
+                            self.deferredHiDPIRestore.remove(key)
                             self.status = "已自动恢复 \(saved.width) × \(saved.height) HiDPI。"
                         }
                     case .finished:
                         self.pendingRestoreKeys.remove(key)
+                        self.deferredHiDPIRestore.remove(key)
                     case .exhausted:
+                        self.deferSavedRestore(key)
                         self.pendingRestoreKeys.remove(key)
-                        self.status = "显示器尚未提供保存的 HiDPI 模式，已停止自动尝试；请检查连接或手动选择。"
+                        self.status = "暂未恢复保存的 HiDPI；模式重新可用时会再尝试，也可点击“重试”。"
                     case .waiting: break
                     }
                     if self.busy || self.activeVirtual { break }
@@ -925,10 +1019,18 @@ import VirtualDisplayBridge
             }
             if epoch == self.restoreEpoch {
                 if !self.pendingRestoreKeys.isEmpty, !self.displaySleeping {
-                    self.status = "尚未读到保存的完整模式，自动恢复已暂停。可重新连接或点击“重试”。"
+                    self.status = "等待完整模式，已暂停频繁尝试；识别恢复后会继续，也可点击“重试”。"
                 }
-                self.pendingRestoreKeys.removeAll()
-                if self.recoveryPending { self.baselineAutoRecoveryAllowed = false }
+                if self.recoveryPending {
+                    // Keep the owed HiDPI keys while the baseline is blocked.
+                    // The scheduler stays paused until its modes return, then
+                    // the same debt is processed after baseline restoration.
+                    self.baselineAutoRecoveryAllowed = false
+                    self.deferredBaselineRestore.markWaiting("baseline", isReady: self.virtualBaseline?.hasAvailableModes == true)
+                } else {
+                    for key in self.pendingRestoreKeys { self.deferSavedRestore(key) }
+                    self.pendingRestoreKeys.removeAll()
+                }
                 self.restoreTask = nil
             }
         }
@@ -957,6 +1059,10 @@ import VirtualDisplayBridge
                 let autoRestoreHiDPI: Bool
                 let savedHiDPI: [SavedHiDPISetting]
                 let recoveryPending: Bool
+                let pendingRestoreKeys: [String]
+                let deferredRestoreKeys: [String]
+                let baselineAutoRecoveryAllowed: Bool
+                let displayRecognitionWarning: String?
             }
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
             let report = Report(appVersion: version, architecture: RuntimeCompatibility.architectureLabel,
@@ -965,7 +1071,11 @@ import VirtualDisplayBridge
                                 virtualAPIAvailable: isVirtualAvailable, demo: isDemo, displays: displays,
                                 autoRestoreHiDPI: autoRestoreHiDPI,
                                 savedHiDPI: savedHiDPI.values.sorted { $0.persistentID < $1.persistentID },
-                                recoveryPending: recoveryPending)
+                                recoveryPending: recoveryPending,
+                                pendingRestoreKeys: pendingRestoreKeys.sorted(),
+                                deferredRestoreKeys: deferredHiDPIRestore.waitingKeys.sorted(),
+                                baselineAutoRecoveryAllowed: baselineAutoRecoveryAllowed,
+                                displayRecognitionWarning: displayRecognitionWarning)
             try encoder.encode(report).write(to: url, options: .atomic)
             status = "诊断信息已导出（包含显示模式，不含显示器序列号）。"
         } catch { self.error = error.localizedDescription }

@@ -145,11 +145,12 @@ struct ContentView: View {
                 Spacer(minLength: 0)
                 currentHiDPIBadge
             }
-            Text("物理面板 \(nativeSizeLabel(display))  ·  当前 \(store.currentMode?.refreshLabel ?? "刷新率未报告")\(store.activeVirtual ? " · 系统镜像" : "")")
+            Text("\(store.panelResolutionDescription)  ·  当前 \(store.currentMode?.refreshLabel ?? "刷新率未报告")\(store.activeVirtual ? " · 系统镜像" : "")")
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .help("面板信息依据系统报告与保存的显示器信息；不代表当前接口信号的独立测量值。")
         }
         .padding(.horizontal, 16)
         .frame(height: 76)
@@ -246,6 +247,11 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 16) {
             DisclosureGroup("显示详情", isExpanded: $showDisplayDetails) {
                 VStack(alignment: .leading, spacing: 10) {
+                    Text(store.panelResolutionDescription)
+                    if store.displayRecognitionWarning != nil {
+                        LabeledContent("当前系统识别", value: nativeSizeLabel(display))
+                        Text("当前模式列表与已保存的面板信息不一致，请等待系统重新识别显示器。")
+                    }
                     if let mode = store.currentMode {
                         LabeledContent("内部渲染尺寸", value: "\(mode.pixelWidth) × \(mode.pixelHeight)")
                         LabeledContent("渲染比例", value: mode.scaleLabel)
